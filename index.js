@@ -104,9 +104,9 @@ class ArchivedConversationsService extends TypertRemoteService {
     }
   }
 
-  /** 恢复：把会话从归档集合中移出（客户端经 domain/changed 自动同步侧栏）。 */
+  /** 恢复：把会话从归档集合中移出，并按会话 cwd 重新挂回原工作区。 */
   async restore(sessionId) {
-    const { ws } = this.deps;
+    const { ws, sq } = this.deps;
     if (!Array.from(ws.archivedSessionIds).includes(sessionId)) return { error: '该会话不在归档集合中' };
     try {
       await ws.enqueueOperation(async () => {
@@ -114,18 +114,34 @@ class ArchivedConversationsService extends TypertRemoteService {
         if (!state.archivedSessionIds.includes(sessionId)) return;
         await ws.setState({ ...state, archivedSessionIds: state.archivedSessionIds.filter((id) => id !== sessionId) });
       });
+      // 找回工作区归属：会话不在任何工作区账户里，且其 header.cwd 匹配某个工作区路径时重新挂载。
+      await ws.enqueueOperation(async () => {
+        const inAny = ws.list().some((w) => w.sessionIds.includes(sessionId));
+        if (inAny) return;
+        let cwd = null;
+        try {
+          const records = await sq.listSessions();
+          const h = records.find((r) => r.header.id === sessionId)?.header;
+          cwd = h && typeof h.cwd === 'string' && h.cwd.length > 0 ? h.cwd : null;
+        } catch (e) { /* header 读取失败则保持未分组 */ }
+        if (cwd === null) return;
+        const norm = (p) => String(p).replace(/[\\/]+/g, '\\').toLowerCase();
+        const target = ws.list().find((w) => norm(w.path) === norm(cwd));
+        if (target === undefined) return;
+        try { await target.attachSession(sessionId); } catch (e) { /* cwd 校验不匹配则保持未分组 */ }
+      });
       return { ok: true };
     } catch (err) {
       return { error: err && err.message ? String(err.message) : String(err) };
     }
   }
 
-  /** 删除：移除归档 + 分组归属 + 本机会话日志目录（不可恢复）。 */
+  /** 删除：先删会话日志目录（物化记录随之消失），成功后再清归档标志与分组归属。 */
   async deleteSession(sessionId) {
     const { ws, sp, sub, sessions } = this.deps;
     try {
       if (sessions !== undefined && sessions.get(sessionId) !== undefined) {
-        return { error: '该会话当前正在运行，无法删除' };
+        return { error: '该会话正在运行中，日志文件被占用，无法彻底删除。请先停止该会话，或先用「恢复」把它移出归档。' };
       }
       if (!Array.from(ws.archivedSessionIds).includes(sessionId)) return { error: '该会话不在归档集合中' };
 
@@ -138,13 +154,37 @@ class ArchivedConversationsService extends TypertRemoteService {
       const dir = logPath.replace(/[\\/][^\\/]*$/, '');
       if (dir.length === 0 || dir === logPath) return { error: '会话日志目录无效' };
 
+      // 1) 先删日志目录：失败则整个删除中止，会话保持原样（仍归档、仍分组）。
+      if (sub === undefined) return { error: 'subprocess 服务不可用，无法删除日志文件' };
+      let exe = null;
+      try { exe = await sub.resolveExecutable('pwsh'); } catch (e) { /* fallthrough */ }
+      if (exe === null) {
+        try { exe = await sub.resolveExecutable('powershell'); } catch (e2) { /* fallthrough */ }
+      }
+      if (exe === null) return { error: '找不到 PowerShell，无法删除日志文件' };
+      const parent = dir.replace(/[\\/][^\\/]*$/, '');
+      const quoted = "'" + dir.replace(/'/g, "''") + "'";
+      // 收集模式（非 inherit）：DSH 宿主无控制台时 inherit 会让 Windows 给子进程新开命令行窗口。
+      const handle = sub.spawn({
+        argv: [exe, '-NoProfile', '-NonInteractive', '-Command', 'Remove-Item -LiteralPath ' + quoted + ' -Recurse -Force'],
+        cwd: parent,
+        stdio: { stdin: 'ignore', stdout: { maxBytes: 4096 }, stderr: { maxBytes: 65536 } },
+        graceMs: 10000,
+      });
+      const outcome = await handle.done;
+      if (outcome.exitCode !== 0) {
+        let detail = '';
+        try { detail = handle.collected.stderr.readFrom(0).text.trim(); } catch (e) { /* no stderr */ }
+        return { error: '删除日志目录失败（退出码 ' + String(outcome.exitCode) + (detail ? '）：' + detail : '）') };
+      }
+
+      // 2) 日志已删，会话不再物化：清理归档标志与工作区账户（卫生操作）。
       await ws.enqueueOperation(async () => {
         const state = ws.requireState();
         if (state.archivedSessionIds.includes(sessionId)) {
           await ws.setState({ ...state, archivedSessionIds: state.archivedSessionIds.filter((id) => id !== sessionId) });
         }
       });
-
       await ws.enqueueOperation(async () => {
         const table = ws.requireTable();
         for (const w of ws.list()) {
@@ -158,24 +198,6 @@ class ArchivedConversationsService extends TypertRemoteService {
         }
         ws.rebuildEntities();
       });
-
-      if (sub === undefined) return { error: 'subprocess 服务不可用，无法删除日志文件（归档与分组信息已清理）' };
-      let exe = null;
-      try { exe = await sub.resolveExecutable('pwsh'); } catch (e) { /* fallthrough */ }
-      if (exe === null) {
-        try { exe = await sub.resolveExecutable('powershell'); } catch (e2) { /* fallthrough */ }
-      }
-      if (exe === null) return { error: '找不到 PowerShell，无法删除日志文件（归档与分组信息已清理）' };
-      const parent = dir.replace(/[\\/][^\\/]*$/, '');
-      const quoted = "'" + dir.replace(/'/g, "''") + "'";
-      const handle = sub.spawn({
-        argv: [exe, '-NoProfile', '-NonInteractive', '-Command', 'Remove-Item -LiteralPath ' + quoted + ' -Recurse -Force'],
-        cwd: parent,
-        stdio: { stdin: 'ignore', stdout: 'inherit', stderr: 'inherit' },
-        graceMs: 10000,
-      });
-      const outcome = await handle.done;
-      if (outcome.exitCode !== 0) return { error: '删除日志目录失败（退出码 ' + String(outcome.exitCode) + '）' };
       return { ok: true };
     } catch (err) {
       return { error: err && err.message ? String(err.message) : String(err) };
