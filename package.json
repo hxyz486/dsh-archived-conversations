@@ -1,0 +1,22 @@
+{
+  "name": "archived-conversation-viewer",
+  "version": "0.1.0",
+  "description": "归档对话查看：在 DSH 设置页查看、恢复与删除归档会话",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "platform": "web"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-typert-protocol": "*",
+    "zod": "*"
+  },
+  "license": "MIT"
+}

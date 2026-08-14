@@ -1,0 +1,100 @@
+/**
+ * Strict Typert manifest for the archived-conversation-viewer host Remote
+ * service. Mirrors the @deepseek-ai/dsh-typert-generator output shape so the
+ * host gateway claims and dispatches `/api/archivedConversations/*` through
+ * the strict path (no SRC markers involved).
+ *
+ * Registered at runtime by index.js via `ctx.typert.register(TYPERT)`.
+ * The package intentionally does NOT export "./typert": the dsh-typert-loader
+ * would register the same invocations again on the next boot and the registry
+ * rejects duplicate endpoints.
+ */
+import { z } from 'zod';
+
+const sessionIdSchema = z.string();
+
+export const TYPERT = {
+  package: 'archived-conversation-viewer',
+  face: 'host',
+  schemas: [],
+  invocations: [
+    {
+      id: 'archived-conversation-viewer#archivedConversations/list',
+      service: 'archivedConversations',
+      namespace: 'archivedConversations',
+      method: 'list',
+      invocation: { kind: 'direct' },
+      parameters: [],
+      result: {
+        mode: 'strict',
+        typeSymbol: 'archived-conversation-viewer/types#ArchivedListResult',
+        schema: z.any(),
+      },
+      sourceLocation: { file: 'index.js', line: 1, column: 1 },
+    },
+    {
+      id: 'archived-conversation-viewer#archivedConversations/read',
+      service: 'archivedConversations',
+      namespace: 'archivedConversations',
+      method: 'read',
+      invocation: { kind: 'direct' },
+      parameters: [
+        {
+          name: 'sessionId',
+          wire: 'sessionId',
+          source: 'json',
+          codec: { mode: 'strict', typeSymbol: 'archived-conversation-viewer/types#SessionId', schema: sessionIdSchema },
+        },
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: 'archived-conversation-viewer/types#ArchivedReadResult',
+        schema: z.any(),
+      },
+      sourceLocation: { file: 'index.js', line: 1, column: 1 },
+    },
+    {
+      id: 'archived-conversation-viewer#archivedConversations/restore',
+      service: 'archivedConversations',
+      namespace: 'archivedConversations',
+      method: 'restore',
+      invocation: { kind: 'direct' },
+      parameters: [
+        {
+          name: 'sessionId',
+          wire: 'sessionId',
+          source: 'json',
+          codec: { mode: 'strict', typeSymbol: 'archived-conversation-viewer/types#SessionId', schema: sessionIdSchema },
+        },
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: 'archived-conversation-viewer/types#ArchivedRestoreResult',
+        schema: z.any(),
+      },
+      sourceLocation: { file: 'index.js', line: 1, column: 1 },
+    },
+    {
+      id: 'archived-conversation-viewer#archivedConversations/deleteSession',
+      service: 'archivedConversations',
+      namespace: 'archivedConversations',
+      method: 'deleteSession',
+      invocation: { kind: 'direct' },
+      parameters: [
+        {
+          name: 'sessionId',
+          wire: 'sessionId',
+          source: 'json',
+          codec: { mode: 'strict', typeSymbol: 'archived-conversation-viewer/types#SessionId', schema: sessionIdSchema },
+        },
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: 'archived-conversation-viewer/types#ArchivedDeleteResult',
+        schema: z.any(),
+      },
+      sourceLocation: { file: 'index.js', line: 1, column: 1 },
+    },
+  ],
+  model: { services: [], events: [], objects: [] },
+};
