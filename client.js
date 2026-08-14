@@ -183,6 +183,19 @@ window.__ModuleLoader__.load({
           });
         };
 
+        // 删除/恢复后，让 DSH 侧栏的会话列表与工作区基线立即重新拉取，
+        // 避免被删会话短暂残留在「未分组」（等价于一次 F5 的效果）。
+        var refreshBaselines = function () {
+          try {
+            var s = api.get('sessions');
+            if (s && typeof s.refresh === 'function') s.refresh();
+          } catch (e) { /* 服务不可用时忽略 */ }
+          try {
+            var w = api.get('workspaces');
+            if (w && typeof w.refresh === 'function') w.refresh();
+          } catch (e) { /* 服务不可用时忽略 */ }
+        };
+
         var runAction = function (sessionId, method) {
           if (busy !== null) return;
           setBusy(sessionId);
@@ -196,6 +209,7 @@ window.__ModuleLoader__.load({
               if (res && res.note) setNotice(res.note);
               setConfirmId(null);
               loadList();
+              refreshBaselines();
             }
           }).catch(function (err) {
             setBusy(null);
