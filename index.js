@@ -165,21 +165,37 @@ class ArchivedConversationsService extends TypertRemoteService {
 
   /** 删除：先删会话日志目录（物化记录随之消失），成功后再清归档标志与分组归属。 */
   async deleteSession(sessionId) {
-    const { ws, sp, sub, agents } = this.deps;
+    const { ws, sp, sub, agents, sessions } = this.deps;
     try {
       // 「运行中」只指 agent 真正在处理消息（status==='running'）。
-      // 会话对象残留在存储里但空闲（idle）≠ 运行中——但它的进程仍驻留 DSH，
-      // 此时删除会留下「未分组」残留，直到重启才消失，故给出明确指引而非误报。
       const agent = agents !== undefined ? agents.get(sessionId) : undefined;
-      if (agent !== undefined) {
-        if (agent.status === 'running') {
-          return { error: '该会话正在运行中（正在处理消息），日志文件被占用，无法彻底删除。请等它结束，或先用「恢复」把它移出归档。' };
-        }
-        if (agent.status === 'idle') {
-          return { error: '该会话的进程仍驻留在 DSH 中（空闲挂起，并非真正运行）。DSH 没有关闭会话的接口：请重启 DSH 后再删除（重启后进程释放，即可彻底清除），或先用「恢复」把它移出归档。' };
-        }
+      if (agent !== undefined && agent.status === 'running') {
+        return { error: '该会话正在运行中（正在处理消息），日志文件被占用，无法彻底删除。请等它结束，或先用「恢复」把它移出归档。' };
       }
       if (!Array.from(ws.archivedSessionIds).includes(sessionId)) return { error: '该会话不在归档集合中' };
+
+      // 会话进程若仍驻留（idle），先把会话从活注册表摘除：
+      // flush 落盘 → detachEntered 移除并触发 session/disposed（侧栏即时同步），
+      // 之后删除日志也不会留下「未分组」残留。
+      let detached = false;
+      if (sessions !== undefined && sessions.get(sessionId) !== undefined) {
+        try {
+          const liveSession = sessions.get(sessionId);
+          const entry = sessions.store && typeof sessions.store.get === 'function' ? sessions.store.get(sessionId) : undefined;
+          if (liveSession && entry && typeof sessions.flush === 'function' && typeof sessions.detachEntered === 'function') {
+            await sessions.flush(liveSession);
+            sessions.detachEntered(entry);
+            detached = true;
+            // 等持久化层的 retire（flush 收尾）落定，避免与后续日志删除竞争。
+            await new Promise((resolve) => setTimeout(resolve, 300));
+          }
+        } catch (detachError) {
+          // 摘除失败：若进程仍在（idle），退回明确指引；否则继续（进程已释放，无残留风险）。
+          if (agent !== undefined && agent.status === 'idle') {
+            return { error: '该会话的进程仍驻留在 DSH 中且无法自动释放（内部摘除失败：' + String(detachError && detachError.message ? detachError.message : detachError) + '）。请重启 DSH 后再删除，或先用「恢复」把它移出归档。' };
+          }
+        }
+      }
 
       const headers = await sp.list();
       const header = headers.find((h) => h.id === sessionId);
@@ -222,7 +238,7 @@ class ArchivedConversationsService extends TypertRemoteService {
       // 2) 日志已删，会话不再物化：清理归档标志与工作区账户（卫生操作）。
       await this.unarchiveOnly(sessionId, ws);
       await this.detachFromWorkspaces(sessionId, ws);
-      return { ok: true };
+      return { ok: true, ...(detached ? { note: '已彻底删除（驻留进程已一并释放）' } : {}) };
     } catch (err) {
       return { error: err && err.message ? String(err.message) : String(err) };
     }
