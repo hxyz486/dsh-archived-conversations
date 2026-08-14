@@ -38,6 +38,7 @@ class ArchivedConversationsService extends TypertRemoteService {
       sp: ctx.get('sessionPersistence'),
       sub: ctx.get('subprocess'),
       sessions: ctx.get('sessions'),
+      agents: ctx.get('agents'),
     };
   }
 
@@ -164,10 +165,19 @@ class ArchivedConversationsService extends TypertRemoteService {
 
   /** 删除：先删会话日志目录（物化记录随之消失），成功后再清归档标志与分组归属。 */
   async deleteSession(sessionId) {
-    const { ws, sp, sub, sessions } = this.deps;
+    const { ws, sp, sub, agents } = this.deps;
     try {
-      if (sessions !== undefined && sessions.get(sessionId) !== undefined) {
-        return { error: '该会话正在运行中，日志文件被占用，无法彻底删除。请先停止该会话，或先用「恢复」把它移出归档。' };
+      // 「运行中」只指 agent 真正在处理消息（status==='running'）。
+      // 会话对象残留在存储里但空闲（idle）≠ 运行中——但它的进程仍驻留 DSH，
+      // 此时删除会留下「未分组」残留，直到重启才消失，故给出明确指引而非误报。
+      const agent = agents !== undefined ? agents.get(sessionId) : undefined;
+      if (agent !== undefined) {
+        if (agent.status === 'running') {
+          return { error: '该会话正在运行中（正在处理消息），日志文件被占用，无法彻底删除。请等它结束，或先用「恢复」把它移出归档。' };
+        }
+        if (agent.status === 'idle') {
+          return { error: '该会话的进程仍驻留在 DSH 中（空闲挂起，并非真正运行）。DSH 没有关闭会话的接口：请重启 DSH 后再删除（重启后进程释放，即可彻底清除），或先用「恢复」把它移出归档。' };
+        }
       }
       if (!Array.from(ws.archivedSessionIds).includes(sessionId)) return { error: '该会话不在归档集合中' };
 
