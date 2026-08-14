@@ -7,7 +7,7 @@
  * instead of the dynamic-runner host.call.
  */
 window.__ModuleLoader__.load({
-  id: 'dsh-archived-conversations',
+  id: 'hxyz-dsh-archived-conversations',
   factory: (require) => {
     try {
       var module = { exports: {} };
@@ -15,10 +15,10 @@ window.__ModuleLoader__.load({
       Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
       var React = require('react');
 
-      if (typeof document !== 'undefined' && document.querySelector('style[data-plugin-css="dsh-archived-conversations"]') === null) {
+      if (typeof document !== 'undefined' && document.querySelector('style[data-plugin-css="hxyz-dsh-archived-conversations"]') === null) {
         var style = document.createElement('style');
-        style.dataset.plugin = 'dsh-archived-conversations';
-        style.dataset.pluginCss = 'dsh-archived-conversations';
+        style.dataset.plugin = 'hxyz-dsh-archived-conversations';
+        style.dataset.pluginCss = 'hxyz-dsh-archived-conversations';
         style.textContent = [
           '.archv-panel { border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; background: var(--dsw-alias-bg-layer-1); padding: 10px 12px; color: var(--dsw-alias-label-primary); font-size: 13px; line-height: 1.5; }',
           '.archv-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-weight: 600; }',
@@ -308,7 +308,7 @@ window.__ModuleLoader__.load({
             ),
             React.createElement('div', { className: 'archv-card-row' },
               React.createElement('span', { className: 'archv-card-key' }, '类型'),
-              React.createElement('span', { className: 'archv-card-val' }, '组合插件（dsh-archived-conversations），刷新/重启均保留')
+              React.createElement('span', { className: 'archv-card-val' }, '组合插件（hxyz-dsh-archived-conversations），刷新/重启均保留')
             )
           ) : null
         );
@@ -331,13 +331,13 @@ window.__ModuleLoader__.load({
             );
           });
         } catch (err) {
-          console.error('[dsh-archived-conversations] client apply failed:', err);
+          console.error('[hxyz-dsh-archived-conversations] client apply failed:', err);
         }
       };
 
       return module.exports;
     } catch (err) {
-      console.error('[dsh-archived-conversations] bundle failed:', err);
+      console.error('[hxyz-dsh-archived-conversations] bundle failed:', err);
       return { apply: function () {} };
     }
   }

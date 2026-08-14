@@ -1,5 +1,5 @@
 /**
- * Strict Typert manifest for the dsh-archived-conversations host Remote
+ * Strict Typert manifest for the hxyz-dsh-archived-conversations host Remote
  * service. Mirrors the @deepseek-ai/dsh-typert-generator output shape so the
  * host gateway claims and dispatches `/api/archivedConversations/*` through
  * the strict path (no SRC markers involved).
@@ -14,12 +14,12 @@ import { z } from 'zod';
 const sessionIdSchema = z.string();
 
 export const TYPERT = {
-  package: 'dsh-archived-conversations',
+  package: 'hxyz-dsh-archived-conversations',
   face: 'host',
   schemas: [],
   invocations: [
     {
-      id: 'dsh-archived-conversations#archivedConversations/list',
+      id: 'hxyz-dsh-archived-conversations#archivedConversations/list',
       service: 'archivedConversations',
       namespace: 'archivedConversations',
       method: 'list',
@@ -27,13 +27,13 @@ export const TYPERT = {
       parameters: [],
       result: {
         mode: 'strict',
-        typeSymbol: 'dsh-archived-conversations/types#ArchivedListResult',
+        typeSymbol: 'hxyz-dsh-archived-conversations/types#ArchivedListResult',
         schema: z.any(),
       },
       sourceLocation: { file: 'index.js', line: 1, column: 1 },
     },
     {
-      id: 'dsh-archived-conversations#archivedConversations/read',
+      id: 'hxyz-dsh-archived-conversations#archivedConversations/read',
       service: 'archivedConversations',
       namespace: 'archivedConversations',
       method: 'read',
@@ -43,18 +43,18 @@ export const TYPERT = {
           name: 'sessionId',
           wire: 'sessionId',
           source: 'json',
-          codec: { mode: 'strict', typeSymbol: 'dsh-archived-conversations/types#SessionId', schema: sessionIdSchema },
+          codec: { mode: 'strict', typeSymbol: 'hxyz-dsh-archived-conversations/types#SessionId', schema: sessionIdSchema },
         },
       ],
       result: {
         mode: 'strict',
-        typeSymbol: 'dsh-archived-conversations/types#ArchivedReadResult',
+        typeSymbol: 'hxyz-dsh-archived-conversations/types#ArchivedReadResult',
         schema: z.any(),
       },
       sourceLocation: { file: 'index.js', line: 1, column: 1 },
     },
     {
-      id: 'dsh-archived-conversations#archivedConversations/restore',
+      id: 'hxyz-dsh-archived-conversations#archivedConversations/restore',
       service: 'archivedConversations',
       namespace: 'archivedConversations',
       method: 'restore',
@@ -64,18 +64,18 @@ export const TYPERT = {
           name: 'sessionId',
           wire: 'sessionId',
           source: 'json',
-          codec: { mode: 'strict', typeSymbol: 'dsh-archived-conversations/types#SessionId', schema: sessionIdSchema },
+          codec: { mode: 'strict', typeSymbol: 'hxyz-dsh-archived-conversations/types#SessionId', schema: sessionIdSchema },
         },
       ],
       result: {
         mode: 'strict',
-        typeSymbol: 'dsh-archived-conversations/types#ArchivedRestoreResult',
+        typeSymbol: 'hxyz-dsh-archived-conversations/types#ArchivedRestoreResult',
         schema: z.any(),
       },
       sourceLocation: { file: 'index.js', line: 1, column: 1 },
     },
     {
-      id: 'dsh-archived-conversations#archivedConversations/deleteSession',
+      id: 'hxyz-dsh-archived-conversations#archivedConversations/deleteSession',
       service: 'archivedConversations',
       namespace: 'archivedConversations',
       method: 'deleteSession',
@@ -85,12 +85,12 @@ export const TYPERT = {
           name: 'sessionId',
           wire: 'sessionId',
           source: 'json',
-          codec: { mode: 'strict', typeSymbol: 'dsh-archived-conversations/types#SessionId', schema: sessionIdSchema },
+          codec: { mode: 'strict', typeSymbol: 'hxyz-dsh-archived-conversations/types#SessionId', schema: sessionIdSchema },
         },
       ],
       result: {
         mode: 'strict',
-        typeSymbol: 'dsh-archived-conversations/types#ArchivedDeleteResult',
+        typeSymbol: 'hxyz-dsh-archived-conversations/types#ArchivedDeleteResult',
         schema: z.any(),
       },
       sourceLocation: { file: 'index.js', line: 1, column: 1 },
