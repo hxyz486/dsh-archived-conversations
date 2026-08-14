@@ -28,6 +28,8 @@ window.__ModuleLoader__.load({
           '.archv-btn-plain:hover { border-color: var(--dsw-alias-brand-primary); color: var(--dsw-alias-brand-primary); }',
           '.archv-empty { color: var(--dsw-alias-label-secondary); padding: 8px 0; }',
           '.archv-error { color: var(--dsw-alias-state-error-primary); padding: 8px 0; white-space: pre-wrap; }',
+          '.archv-notice { color: var(--dsw-alias-label-secondary); padding: 4px 0 8px; white-space: pre-wrap; font-size: 12px; }',
+          '.archv-orphan { flex: none; font-size: 11px; color: var(--dsw-alias-state-warn-primary, #b45309); border: 1px solid currentColor; border-radius: 3px; padding: 0 4px; white-space: nowrap; }',
           '.archv-groups { max-height: 55vh; overflow-y: auto; padding-right: 4px; }',
           '.archv-group { border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; margin: 8px 0; overflow: hidden; }',
           '.archv-group-head { display: flex; align-items: center; gap: 8px; padding: 8px 10px; cursor: pointer; background: var(--dsw-alias-bg-layer-2); }',
@@ -144,6 +146,9 @@ window.__ModuleLoader__.load({
         var hooks8 = React.useState(null);
         var actionError = hooks8[0];
         var setActionError = hooks8[1];
+        var hooks9 = React.useState(null);
+        var notice = hooks9[0];
+        var setNotice = hooks9[1];
 
         var loadList = function () {
           setError(null);
@@ -182,11 +187,13 @@ window.__ModuleLoader__.load({
           if (busy !== null) return;
           setBusy(sessionId);
           setActionError(null);
+          setNotice(null);
           rpc(api, method, { sessionId: sessionId }).then(function (res) {
             setBusy(null);
             if (res && res.error) {
               setActionError(res.error);
             } else {
+              if (res && res.note) setNotice(res.note);
               setConfirmId(null);
               loadList();
             }
@@ -218,6 +225,7 @@ window.__ModuleLoader__.load({
           return React.createElement('div', { key: s.sessionId, className: 'archv-row' },
             React.createElement('div', { className: 'archv-row-title' },
               React.createElement('span', { className: 'archv-row-name', title: s.sessionId, onClick: function () { toggleTranscript(s.sessionId); } }, s.title || ('（无标题） ' + s.sessionId)),
+              s.orphan ? React.createElement('span', { className: 'archv-orphan' }, '日志已丢失') : null,
               React.createElement('span', { className: 'archv-row-meta' }, fmtTime(s.createdAt)),
               React.createElement('span', { className: 'archv-row-actions' },
                 React.createElement('button', { className: 'archv-btn archv-btn-restore', disabled: busy !== null, onClick: function () { restore(s.sessionId); } }, isBusy ? '处理中…' : '恢复'),
@@ -255,6 +263,7 @@ window.__ModuleLoader__.load({
           React.createElement('div', { className: 'archv-desc' }, '按工作区分组，列表区域可上下滚动。恢复：把会话从归档集中移出，重新出现在侧边栏；删除：同时清除归档记录、分组归属和本机会话日志（session.jsonl.zstd），不可恢复。点击会话行可展开查看完整对话。'),
           error ? React.createElement('div', { className: 'archv-error' }, error) : null,
           actionError ? React.createElement('div', { className: 'archv-error' }, actionError) : null,
+          notice ? React.createElement('div', { className: 'archv-notice' }, notice) : null,
           groups === null ? React.createElement('div', { className: 'archv-empty' }, '加载中…') : null,
           groups !== null && total === 0 ? React.createElement('div', { className: 'archv-empty' }, '暂无归档会话。归档入口：侧边栏会话行菜单 →「归档」；归档后对话会从列表中消失，可在此查看、恢复或删除。') : null,
           React.createElement('div', { className: 'archv-groups' }, groupEls)

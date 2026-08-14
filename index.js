@@ -60,7 +60,7 @@ class ArchivedConversationsService extends TypertRemoteService {
     }
     const meta = (id) => {
       const h = headers.get(id);
-      return { sessionId: id, title: titles.get(id) || null, createdAt: h ? h.createdAt : null };
+      return { sessionId: id, title: titles.get(id) || null, createdAt: h ? h.createdAt : null, orphan: h === undefined };
     };
     const groups = [];
     const seen = new Set();
@@ -106,14 +106,14 @@ class ArchivedConversationsService extends TypertRemoteService {
 
   /** 恢复：把会话从归档集合中移出，并按会话 cwd 重新挂回原工作区。 */
   async restore(sessionId) {
-    const { ws, sq } = this.deps;
+    const { ws, sq, sp } = this.deps;
     if (!Array.from(ws.archivedSessionIds).includes(sessionId)) return { error: '该会话不在归档集合中' };
     try {
-      await ws.enqueueOperation(async () => {
-        const state = ws.requireState();
-        if (!state.archivedSessionIds.includes(sessionId)) return;
-        await ws.setState({ ...state, archivedSessionIds: state.archivedSessionIds.filter((id) => id !== sessionId) });
-      });
+      const headers = await sp.list();
+      if (!headers.some((h) => h.id === sessionId)) {
+        return { error: '该会话的日志已不存在（可能是残留的归档记录），无法恢复；请改用「删除」清理它。' };
+      }
+      await this.unarchiveOnly(sessionId, ws);
       // 找回工作区归属：会话不在任何工作区账户里，且其 header.cwd 匹配某个工作区路径时重新挂载。
       await ws.enqueueOperation(async () => {
         const inAny = ws.list().some((w) => w.sessionIds.includes(sessionId));
@@ -136,6 +136,32 @@ class ArchivedConversationsService extends TypertRemoteService {
     }
   }
 
+  /** 仅把 sessionId 从归档标志中移出。 */
+  async unarchiveOnly(sessionId, ws) {
+    await ws.enqueueOperation(async () => {
+      const state = ws.requireState();
+      if (!state.archivedSessionIds.includes(sessionId)) return;
+      await ws.setState({ ...state, archivedSessionIds: state.archivedSessionIds.filter((id) => id !== sessionId) });
+    });
+  }
+
+  /** 把 sessionId 从所有工作区账户中移除（卫生操作，幂等）。 */
+  async detachFromWorkspaces(sessionId, ws) {
+    await ws.enqueueOperation(async () => {
+      const table = ws.requireTable();
+      for (const w of ws.list()) {
+        if (w.sessionIds.includes(sessionId)) {
+          await table.update(w.id, (record) => ({
+            ...record,
+            sessionIds: record.sessionIds.filter((id) => id !== sessionId),
+            updatedAt: new Date().toISOString(),
+          }));
+        }
+      }
+      ws.rebuildEntities();
+    });
+  }
+
   /** 删除：先删会话日志目录（物化记录随之消失），成功后再清归档标志与分组归属。 */
   async deleteSession(sessionId) {
     const { ws, sp, sub, sessions } = this.deps;
@@ -147,7 +173,12 @@ class ArchivedConversationsService extends TypertRemoteService {
 
       const headers = await sp.list();
       const header = headers.find((h) => h.id === sessionId);
-      if (header === undefined) return { error: '找不到该会话的持久化日志' };
+      if (header === undefined) {
+        // 幽灵条目：日志已不存在，无需（也无法）删日志——直接清理归档标志与分组归属。
+        await this.unarchiveOnly(sessionId, ws);
+        await this.detachFromWorkspaces(sessionId, ws);
+        return { ok: true, note: '会话日志已不存在，已清理归档记录' };
+      }
       const loc = sp.locate(header);
       if (!loc || typeof loc.path !== 'string' || loc.path.length === 0) return { error: '无法定位会话日志文件' };
       const logPath = loc.path;
@@ -179,25 +210,8 @@ class ArchivedConversationsService extends TypertRemoteService {
       }
 
       // 2) 日志已删，会话不再物化：清理归档标志与工作区账户（卫生操作）。
-      await ws.enqueueOperation(async () => {
-        const state = ws.requireState();
-        if (state.archivedSessionIds.includes(sessionId)) {
-          await ws.setState({ ...state, archivedSessionIds: state.archivedSessionIds.filter((id) => id !== sessionId) });
-        }
-      });
-      await ws.enqueueOperation(async () => {
-        const table = ws.requireTable();
-        for (const w of ws.list()) {
-          if (w.sessionIds.includes(sessionId)) {
-            await table.update(w.id, (record) => ({
-              ...record,
-              sessionIds: record.sessionIds.filter((id) => id !== sessionId),
-              updatedAt: new Date().toISOString(),
-            }));
-          }
-        }
-        ws.rebuildEntities();
-      });
+      await this.unarchiveOnly(sessionId, ws);
+      await this.detachFromWorkspaces(sessionId, ws);
       return { ok: true };
     } catch (err) {
       return { error: err && err.message ? String(err.message) : String(err) };
